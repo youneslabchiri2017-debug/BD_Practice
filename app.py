@@ -22,7 +22,12 @@ def main():
 
         try:
             # 1. Load the test data from the location passed
-            df_raw = spark.read.csv(data_path, header=True, inferSchema=True)
+            df_raw = df = spark.read.csv(
+                data_path,
+                header=True,
+                inferSchema=True,
+                nullValue="NA"
+            )
 
             # --- LÓGICA DE FILTRADO (Esencial antes de la predicción) ---
             print("Limpiando y filtrando datos de entrada...", file=f)
@@ -48,7 +53,14 @@ def main():
             predictions = best_model.transform(df)
 
             # Mostrar una muestra de los resultados
-            predictions.select("FlightNum", "ArrDelay", "prediction").show(10)
+            rows = predictions.select("ArrDelay", "prediction").take(10)
+
+            print("\nMUESTRA DE PREDICCIONES:", file=f)
+            print("-" * 40, file=f)
+            for r in rows:
+                print(f"ArrDelay real: {r['ArrDelay']}, Predicción: {r['prediction']:.2f}", file=f)
+            print("-" * 40, file=f)
+
 
             # 4. Perform a complete performance evaluation on the test data
             print("Evaluando rendimiento final...", file=f)
@@ -68,6 +80,11 @@ def main():
             print(f"MAE  (Error absoluto):    {mae:.4f}", file=f)
             print(f"R2   (Varianza explicada): {r2:.4f}", file=f)
             print("="*40, file=f)
+
+            output_path = "predicciones_full_csv"
+
+            predictions.write.mode("overwrite").parquet("predicciones_full_parquet")
+
 
         except Exception as e:
             print(f"ERROR: No se pudo procesar el modelo o los datos. Detalle: {e}", file=f)

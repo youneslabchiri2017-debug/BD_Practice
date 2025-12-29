@@ -1,3 +1,5 @@
 /data
 /training_data
 salida.txt
+/predicciones_full_parquet
+/best_model
