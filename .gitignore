@@ -3,3 +3,4 @@
 salida.txt
 /predicciones_full_parquet
 /best_model
+/.venv
