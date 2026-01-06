@@ -5,65 +5,52 @@ from pyspark.ml import PipelineModel
 from pyspark.ml.evaluation import RegressionEvaluator
 
 def main():
-    # 0. Verificar que se ha pasado la ruta de los datos como argumento
+    # Check for arguments
     if len(sys.argv) < 2:
-        print("Uso: spark-submit predict_app.py <ruta_de_datos_test>", file=f)
+        print("Usage: spark-submit app.py <data_route>", file=f)
         sys.exit(-1)
 
     data_path = sys.argv[1]
 
-    # Inicializar la sesión de Spark
+    # Initialize spark app
     spark = SparkSession.builder \
-        .appName("Flight Delay Prediction - Production App") \
+        .appName("Flight Delay Prediction App") \
         .getOrCreate()
 
-    print(f"Cargando datos desde: {data_path}")
-    with open("salida.txt", "w") as f:
+    print(f"Loading data from: {data_path}")
+    with open("output.txt", "w") as f:
 
         try:
-            # 1. Load the test data from the location passed
-            df_raw = df = spark.read.csv(
+            # Load test data 
+            df = spark.read.csv(
                 data_path,
                 header=True,
                 inferSchema=True,
                 nullValue="NA"
             )
 
-            # --- LÓGICA DE FILTRADO (Esencial antes de la predicción) ---
-            print("Limpiando y filtrando datos de entrada...", file=f)
             
-            # Eliminar vuelos cancelados
-            df = df_raw.filter(col("Cancelled") != 1)
-
-            # Eliminar nulos en columnas críticas de tiempo
-            df = df.dropna(subset=["CRSDepTime", "CRSArrTime"])
-
-            # Eliminar nulos en la variable objetivo (necesario para la evaluación final)
-            df = df.na.drop(subset=["ArrDelay"])
-            
-            print(f"Registros tras limpieza: {df.count()}", file=f)
-            # 2. Load your best_model
-            # Cargamos el modelo que guardamos previamente como PipelineModel
+            # Load model
             model_path = "best_model"
-            print(f"Cargando modelo desde: {model_path}")
+            print(f"Loading model from: {model_path}")
             best_model = PipelineModel.load(model_path)
 
-            # 3. Perform some predictions on the test data
-            print("Realizando predicciones...", file=f)
+            # Perform some predictions on the test data
+            print("Predicting...", file=f)
             predictions = best_model.transform(df)
 
-            # Mostrar una muestra de los resultados
+            # Show some result
             rows = predictions.select("ArrDelay", "prediction").take(10)
 
-            print("\nMUESTRA DE PREDICCIONES:", file=f)
+            print("\nPredictions sample:", file=f)
             print("-" * 40, file=f)
             for r in rows:
-                print(f"ArrDelay real: {r['ArrDelay']}, Predicción: {r['prediction']:.2f}", file=f)
+                print(f"ArrDelay real: {r['ArrDelay']}, Prediction: {r['prediction']:.2f}", file=f)
             print("-" * 40, file=f)
 
 
-            # 4. Perform a complete performance evaluation on the test data
-            print("Evaluando rendimiento final...", file=f)
+            # Perform a complete performance evaluation on the test data
+            print("Evaluating performance...", file=f)
             
             evaluador_rmse = RegressionEvaluator(labelCol="ArrDelay", predictionCol="prediction", metricName="rmse")
             evaluador_mae = RegressionEvaluator(labelCol="ArrDelay", predictionCol="prediction", metricName="mae")
@@ -74,20 +61,19 @@ def main():
             r2 = evaluador_r2.evaluate(predictions)
 
             print("\n" + "="*40)
-            print("INFORME DE RENDIMIENTO FINAL", file=f)
+            print("FINAL PERFORMANCE REPORT", file=f)
             print("="*40, file=f)
-            print(f"RMSE (Error cuadrático):  {rmse:.4f}", file=f)
-            print(f"MAE  (Error absoluto):    {mae:.4f}", file=f)
-            print(f"R2   (Varianza explicada): {r2:.4f}", file=f)
+            print(f"RMSE:  {rmse:.4f}", file=f)
+            print(f"MAE:    {mae:.4f}", file=f)
+            print(f"R2: {r2:.4f}", file=f)
             print("="*40, file=f)
 
-            output_path = "predicciones_full_csv"
 
-            predictions.write.mode("overwrite").parquet("predicciones_full_parquet")
+            predictions.write.mode("overwrite").parquet("predictions_full_parquet")
 
 
         except Exception as e:
-            print(f"ERROR: No se pudo procesar el modelo o los datos. Detalle: {e}", file=f)
+            print(f"ERROR: Couldn't processs model or data: {e}", file=f)
         finally:
             spark.stop()
 
